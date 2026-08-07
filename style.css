@@ -1,0 +1,111 @@
+:root {
+  --bg: #06090C;
+  --panel: #0D1218;
+  --border: #1C242E;
+  --blue: #6FD3FF;
+  --blue-soft: rgba(111,211,255,0.10);
+  --amber: #FFC864;
+  --amber-soft: rgba(255,200,100,0.10);
+  --red: #FF7A7A;
+  --red-soft: rgba(255,122,122,0.10);
+  --text: #E7EFF6;
+  --text-soft: #6B7885;
+  --green: #6CFFB0;
+  --dim-seg: #161C24;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+  display: flex; align-items: center; justify-content: center;
+  min-height: 100dvh;
+  padding: clamp(12px, 4vw, 32px);
+}
+
+/* Fluid container: shrinks on small screens, caps out on large ones */
+.device {
+  width: min(100%, 460px);
+  background: linear-gradient(180deg, #10161E 0%, var(--panel) 100%);
+  border: 1px solid var(--border);
+  border-radius: clamp(14px, 3vw, 22px);
+  padding: clamp(16px, 4.5vw, 26px);
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.02), 0 30px 60px rgba(0,0,0,0.5);
+}
+
+.head-row {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 8px; flex-wrap: wrap;
+  margin-bottom: clamp(14px, 3vw, 22px); margin-top: 4px;
+}
+.notify-btn {
+  font-family: 'JetBrains Mono'; font-size: clamp(9px, 2.2vw, 10.5px); font-weight: 700;
+  background: transparent; color: var(--text-soft); border: 1px solid var(--border);
+  border-radius: 999px; padding: 4px 10px; cursor: pointer; letter-spacing: .03em;
+  white-space: nowrap;
+}
+.notify-btn.on { color: var(--green); border-color: var(--green); }
+.head-label {
+  font-family: 'JetBrains Mono'; font-size: clamp(9.5px, 2.4vw, 10.5px);
+  letter-spacing: .08em; color: var(--text-soft); text-transform: uppercase;
+}
+.live {
+  display: flex; align-items: center; gap: 5px;
+  font-size: clamp(9.5px, 2.4vw, 10.5px); font-weight: 700; color: var(--green);
+  letter-spacing: .04em; white-space: nowrap;
+}
+.live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); box-shadow: 0 0 6px var(--green); animation: pulse 1.6s infinite; flex-shrink: 0; }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+
+.unit-name { font-size: clamp(13px, 3vw, 15px); font-weight: 700; margin-bottom: clamp(18px, 4vw, 26px); }
+
+/* ---------- capacity meter: horizontal segmented bar ---------- */
+.cap-zone { margin-bottom: clamp(16px, 4vw, 24px); }
+.cap-top {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 10px; flex-wrap: wrap; margin-bottom: clamp(10px, 2.5vw, 14px);
+}
+.cap-num { font-family: 'JetBrains Mono'; font-weight: 700; font-size: clamp(32px, 9vw, 44px); line-height: 1; }
+.cap-num .suffix { font-size: clamp(12px, 3vw, 16px); color: var(--text-soft); font-weight: 600; margin-left: 3px; }
+.status-chip {
+  font-family: 'JetBrains Mono'; font-size: clamp(9.5px, 2.3vw, 10.5px); font-weight: 700;
+  letter-spacing: .06em; padding: 5px 12px; border-radius: 999px; border: 1px solid;
+  white-space: nowrap;
+}
+
+.segments { display: flex; gap: clamp(3px, 1vw, 5px); height: clamp(30px, 8vw, 40px); margin-bottom: 8px; }
+.segment {
+  flex: 1; min-width: 0; border-radius: 4px; background: var(--dim-seg);
+  border: 1px solid rgba(255,255,255,0.03);
+  transition: background .35s ease, box-shadow .35s ease;
+}
+.segment.filled { box-shadow: 0 0 10px currentColor; }
+
+.cap-scale {
+  display: flex; justify-content: space-between;
+  font-family: 'JetBrains Mono'; font-size: clamp(8.5px, 2vw, 9.5px); color: var(--text-soft);
+}
+
+.meta-row {
+  display: flex; justify-content: space-between; align-items: flex-end;
+  flex-wrap: wrap; gap: 10px;
+  border-top: 1px solid var(--border); padding-top: clamp(10px, 2.5vw, 14px); margin-top: 6px;
+}
+.meta-block .meta-lbl { font-size: clamp(8.5px, 2vw, 9.5px); color: var(--text-soft); text-transform: uppercase; letter-spacing: .06em; }
+.meta-block .meta-val { font-family: 'JetBrains Mono'; font-size: clamp(11px, 2.6vw, 12px); font-weight: 600; margin-top: 3px; }
+.meta-block:last-child { text-align: right; margin-left: auto; }
+
+/* Extra-small phones: stack the header row cleanly */
+@media (max-width: 340px) {
+  .head-row { justify-content: flex-start; }
+  .live { order: -1; width: 100%; }
+}
+
+/* Larger screens / desktop monitors: let the card breathe a bit more */
+@media (min-width: 900px) {
+  .device { width: 480px; }
+}

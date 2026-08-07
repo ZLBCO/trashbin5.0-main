@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Smart Bin Monitor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+<div class="device">
+  <div class="head-row" style="margin-bottom: 22px;">
+    <span class="head-label">Trash level</span>
+    <div style="display:flex; align-items:center; gap:10px;">
+      <button id="notifyBtn" class="notify-btn">🔔 Enable alerts</button>
+      <span class="live"><span class="live-dot"></span>LIVE</span>
+    </div>
+  </div>
+
+  <div class="cap-zone">
+    <div class="cap-top">
+      <div class="cap-num"><span id="capVal">85</span><span class="suffix">% full</span></div>
+      <div class="status-chip" id="statusChip"></div>
+    </div>
+    <div class="segments" id="segments"></div>
+    <div class="cap-scale"><span>0</span><span>25</span><span>50</span><span>75</span><span>100</span></div>
+  </div>
+
+  <div class="meta-row">
+    <div class="meta-block">
+      <div class="meta-lbl">Last reading</div>
+      <div class="meta-val" id="lastReading">—</div>
+    </div>
+    <div class="meta-block">
+      <div class="meta-lbl">Mode</div>
+      <div class="meta-val">realtime</div>
+    </div>
+  </div>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
