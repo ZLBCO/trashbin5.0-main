@@ -31,6 +31,7 @@ async function fetchLatestReading() {
 const bin = { pct: 0, distanceCm: 0, full: false, readAt: new Date() };
 const SEGMENT_COUNT = 16;
 let lastNotifiedLabel = null; // avoid sending the same notification repeatedly
+let hasData = false; // becomes true once a real reading from the ESP32-C3 arrives
 
 function updateNotifyBtn() {
   const btn = document.getElementById('notifyBtn');
@@ -101,18 +102,35 @@ function drawSegments(pct) {
 }
 
 function render() {
+  const capValEl = document.getElementById('capVal');
+  const chip = document.getElementById('statusChip');
+
+  // No reading from the ESP32-C3 yet — show a neutral "connecting" state
+  // instead of a fake/hardcoded percentage, and keep the bar empty.
+  if (!hasData) {
+    capValEl.textContent = '--';
+    document.getElementById('lastReading').textContent = '—';
+    chip.textContent = 'CONNECTING…';
+    chip.style.color = 'var(--gray)';
+    chip.style.borderColor = 'var(--gray)';
+    chip.style.background = 'var(--gray-soft)';
+    drawSegments(0);
+    return;
+  }
+
   const { color, soft, label: baseLabel } = colorFor(bin.pct);
   const label = bin.full ? 'FULL — PICKUP NOW' : baseLabel;
 
-  document.getElementById('capVal').textContent = Math.round(bin.pct);
+  capValEl.textContent = Math.round(bin.pct);
   document.getElementById('lastReading').textContent = timeString(bin.readAt);
 
-  const chip = document.getElementById('statusChip');
   chip.textContent = label;
   chip.style.color = color;
   chip.style.borderColor = color;
   chip.style.background = soft;
 
+  // Segment bar fills up proportionally to the live capacity % reported
+  // by the ESP32-C3 (via distance_cm -> capacity conversion on the device).
   drawSegments(bin.pct);
   maybeNotify(label, bin.pct);
 }
@@ -125,6 +143,7 @@ async function loadInitialReading() {
     bin.distanceCm = latest.distance_cm;
     bin.full = latest.full;
     bin.readAt = new Date(latest.created_at);
+    hasData = true;
     render();
   }
 }
@@ -146,6 +165,7 @@ function subscribeToRealtimeReadings() {
         bin.distanceCm = row.distance_cm;
         bin.full = row.full;
         bin.readAt = new Date(row.created_at);
+        hasData = true;
         render();
       }
     )
