@@ -28,10 +28,14 @@ async function fetchLatestReading() {
   return data;
 }
 
-const bin = { pct: 0, distanceCm: 0, full: false, readAt: new Date() };
+const bin = { pct: 0, distanceCm: 0, full: false, readAt: null };
 const SEGMENT_COUNT = 16;
 let lastNotifiedLabel = null; // avoid sending the same notification repeatedly
-let hasData = false; // becomes true once a real reading from the ESP32-C3 arrives
+
+// Connection mode shown in the "Mode" field: 'realtime' (live push working),
+// 'polling' (falling back to periodic fetch), or 'offline' (no data yet / no client)
+let connectionMode = 'connecting';
+const POLL_INTERVAL_MS = 5000; // fallback poll rate if realtime isn't delivering
 
 function updateNotifyBtn() {
   const btn = document.getElementById('notifyBtn');
@@ -101,50 +105,65 @@ function drawSegments(pct) {
   }
 }
 
-function render() {
-  const capValEl = document.getElementById('capVal');
-  const chip = document.getElementById('statusChip');
+function updateModeDisplay() {
+  const el = document.getElementById('modeVal');
+  if (!el) return;
+  const labels = {
+    connecting: 'connecting…',
+    realtime: 'realtime',
+    polling: 'polling',
+    offline: 'no data yet'
+  };
+  el.textContent = labels[connectionMode] || connectionMode;
+}
 
-  // No reading from the ESP32-C3 yet — show a neutral "connecting" state
-  // instead of a fake/hardcoded percentage, and keep the bar empty.
-  if (!hasData) {
-    capValEl.textContent = '--';
-    document.getElementById('lastReading').textContent = '—';
-    chip.textContent = 'CONNECTING…';
-    chip.style.color = 'var(--gray)';
-    chip.style.borderColor = 'var(--gray)';
-    chip.style.background = 'var(--gray-soft)';
-    drawSegments(0);
-    return;
-  }
+function setConnectionMode(mode) {
+  if (connectionMode === mode) return;
+  connectionMode = mode;
+  updateModeDisplay();
+}
+
+function render() {
+  if (!bin.readAt) return; // nothing received yet, keep placeholder UI
 
   const { color, soft, label: baseLabel } = colorFor(bin.pct);
   const label = bin.full ? 'FULL — PICKUP NOW' : baseLabel;
 
-  capValEl.textContent = Math.round(bin.pct);
+  document.getElementById('capVal').textContent = Math.round(bin.pct);
   document.getElementById('lastReading').textContent = timeString(bin.readAt);
 
+  const distEl = document.getElementById('distVal');
+  if (distEl) distEl.textContent = `${bin.distanceCm.toFixed(1)} cm`;
+
+  const chip = document.getElementById('statusChip');
   chip.textContent = label;
   chip.style.color = color;
   chip.style.borderColor = color;
   chip.style.background = soft;
 
-  // Segment bar fills up proportionally to the live capacity % reported
-  // by the ESP32-C3 (via distance_cm -> capacity conversion on the device).
   drawSegments(bin.pct);
   maybeNotify(label, bin.pct);
 }
 
+function applyReading(row) {
+  if (!row) return;
+  bin.pct = row.capacity;
+  bin.distanceCm = row.distance_cm;
+  bin.full = row.full;
+  bin.readAt = new Date(row.created_at);
+  render();
+}
+
 async function loadInitialReading() {
-  if (!supabaseClient) return;
+  if (!supabaseClient) {
+    setConnectionMode('offline');
+    return;
+  }
   const latest = await fetchLatestReading();
   if (latest) {
-    bin.pct = latest.capacity;
-    bin.distanceCm = latest.distance_cm;
-    bin.full = latest.full;
-    bin.readAt = new Date(latest.created_at);
-    hasData = true;
-    render();
+    applyReading(latest);
+  } else {
+    setConnectionMode('offline');
   }
 }
 
@@ -160,22 +179,44 @@ function subscribeToRealtimeReadings() {
       'postgres_changes',
       { event: 'INSERT', schema: 'public', table: 'Var' },
       (payload) => {
-        const row = payload.new;
-        bin.pct = row.capacity;
-        bin.distanceCm = row.distance_cm;
-        bin.full = row.full;
-        bin.readAt = new Date(row.created_at);
-        hasData = true;
-        render();
+        applyReading(payload.new);
+        setConnectionMode('realtime'); // an INSERT event actually arrived — realtime is working
       }
     )
     .subscribe((status) => {
       console.log('Supabase realtime status:', status);
+      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+        // Realtime not reachable (e.g. replication not enabled on the "Var" table,
+        // or RLS blocking anon SELECT) — polling below still keeps the UI live.
+        if (connectionMode === 'realtime') setConnectionMode('polling');
+      }
     });
 }
 
+// Belt-and-suspenders: poll on an interval regardless of realtime status.
+// This guarantees the page updates even if Realtime replication hasn't been
+// enabled for the "Var" table in the Supabase dashboard, or the WebSocket
+// connection gets dropped by a flaky network.
+function startPollingFallback() {
+  if (!supabaseClient) return;
+  setInterval(async () => {
+    const latest = await fetchLatestReading();
+    if (latest) {
+      const isNewRow = !bin.readAt || new Date(latest.created_at).getTime() !== bin.readAt.getTime();
+      applyReading(latest);
+      if (connectionMode !== 'realtime') {
+        setConnectionMode('polling');
+      } else if (isNewRow) {
+        // realtime already marked us live and polling agrees — leave mode as-is
+      }
+    }
+  }, POLL_INTERVAL_MS);
+}
+
+updateModeDisplay();
 loadInitialReading();
 subscribeToRealtimeReadings();
+startPollingFallback();
 
 const notifyBtn = document.getElementById('notifyBtn');
 if (notifyBtn) {

@@ -12,8 +12,6 @@
   --text-soft: #6B7885;
   --green: #6CFFB0;
   --dim-seg: #161C24;
-  --gray: #8A97A5;
-  --gray-soft: rgba(138,151,165,0.10);
 }
 
 * { box-sizing: border-box; }
