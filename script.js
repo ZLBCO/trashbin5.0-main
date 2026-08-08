@@ -28,14 +28,9 @@ async function fetchLatestReading() {
   return data;
 }
 
-const bin = { pct: 0, distanceCm: 0, full: false, readAt: null };
+const bin = { pct: 0, distanceCm: 0, full: false, readAt: new Date() };
 const SEGMENT_COUNT = 16;
 let lastNotifiedLabel = null; // avoid sending the same notification repeatedly
-
-// Connection mode shown in the "Mode" field: 'realtime' (live push working),
-// 'polling' (falling back to periodic fetch), or 'offline' (no data yet / no client)
-let connectionMode = 'connecting';
-const POLL_INTERVAL_MS = 5000; // fallback poll rate if realtime isn't delivering
 
 function updateNotifyBtn() {
   const btn = document.getElementById('notifyBtn');
@@ -105,35 +100,12 @@ function drawSegments(pct) {
   }
 }
 
-function updateModeDisplay() {
-  const el = document.getElementById('modeVal');
-  if (!el) return;
-  const labels = {
-    connecting: 'connecting…',
-    realtime: 'realtime',
-    polling: 'polling',
-    offline: 'no data yet'
-  };
-  el.textContent = labels[connectionMode] || connectionMode;
-}
-
-function setConnectionMode(mode) {
-  if (connectionMode === mode) return;
-  connectionMode = mode;
-  updateModeDisplay();
-}
-
 function render() {
-  if (!bin.readAt) return; // nothing received yet, keep placeholder UI
-
   const { color, soft, label: baseLabel } = colorFor(bin.pct);
   const label = bin.full ? 'FULL — PICKUP NOW' : baseLabel;
 
   document.getElementById('capVal').textContent = Math.round(bin.pct);
   document.getElementById('lastReading').textContent = timeString(bin.readAt);
-
-  const distEl = document.getElementById('distVal');
-  if (distEl) distEl.textContent = `${bin.distanceCm.toFixed(1)} cm`;
 
   const chip = document.getElementById('statusChip');
   chip.textContent = label;
@@ -145,25 +117,15 @@ function render() {
   maybeNotify(label, bin.pct);
 }
 
-function applyReading(row) {
-  if (!row) return;
-  bin.pct = row.capacity;
-  bin.distanceCm = row.distance_cm;
-  bin.full = row.full;
-  bin.readAt = new Date(row.created_at);
-  render();
-}
-
 async function loadInitialReading() {
-  if (!supabaseClient) {
-    setConnectionMode('offline');
-    return;
-  }
+  if (!supabaseClient) return;
   const latest = await fetchLatestReading();
   if (latest) {
-    applyReading(latest);
-  } else {
-    setConnectionMode('offline');
+    bin.pct = latest.capacity;
+    bin.distanceCm = latest.distance_cm;
+    bin.full = latest.full;
+    bin.readAt = new Date(latest.created_at);
+    render();
   }
 }
 
@@ -179,44 +141,21 @@ function subscribeToRealtimeReadings() {
       'postgres_changes',
       { event: 'INSERT', schema: 'public', table: 'Var' },
       (payload) => {
-        applyReading(payload.new);
-        setConnectionMode('realtime'); // an INSERT event actually arrived — realtime is working
+        const row = payload.new;
+        bin.pct = row.capacity;
+        bin.distanceCm = row.distance_cm;
+        bin.full = row.full;
+        bin.readAt = new Date(row.created_at);
+        render();
       }
     )
     .subscribe((status) => {
       console.log('Supabase realtime status:', status);
-      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-        // Realtime not reachable (e.g. replication not enabled on the "Var" table,
-        // or RLS blocking anon SELECT) — polling below still keeps the UI live.
-        if (connectionMode === 'realtime') setConnectionMode('polling');
-      }
     });
 }
 
-// Belt-and-suspenders: poll on an interval regardless of realtime status.
-// This guarantees the page updates even if Realtime replication hasn't been
-// enabled for the "Var" table in the Supabase dashboard, or the WebSocket
-// connection gets dropped by a flaky network.
-function startPollingFallback() {
-  if (!supabaseClient) return;
-  setInterval(async () => {
-    const latest = await fetchLatestReading();
-    if (latest) {
-      const isNewRow = !bin.readAt || new Date(latest.created_at).getTime() !== bin.readAt.getTime();
-      applyReading(latest);
-      if (connectionMode !== 'realtime') {
-        setConnectionMode('polling');
-      } else if (isNewRow) {
-        // realtime already marked us live and polling agrees — leave mode as-is
-      }
-    }
-  }, POLL_INTERVAL_MS);
-}
-
-updateModeDisplay();
 loadInitialReading();
 subscribeToRealtimeReadings();
-startPollingFallback();
 
 const notifyBtn = document.getElementById('notifyBtn');
 if (notifyBtn) {
